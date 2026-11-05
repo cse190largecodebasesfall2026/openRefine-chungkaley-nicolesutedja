@@ -1,0 +1,646 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <artifactId>packaging</artifactId>
+  <name>OpenRefine - packaging</name>
+  <description>Creates packages for all supported operating systems</description>
+  <url>http://openrefine.org/</url>
+  <packaging>pom</packaging>
+
+  <parent>
+    <groupId>org.openrefine</groupId>
+    <artifactId>openrefine</artifactId>
+    <version>3.10-SNAPSHOT</version>
+  </parent>
+  <properties>
+    <rootdir>${basedir}/..</rootdir>
+    <webapp.dir>../main/webapp</webapp.dir>
+    <webapp.target>../main/target</webapp.target>
+    <embedded.jre.version>${java.minversion}</embedded.jre.version>
+
+    <mac.arch>${os.arch}</mac.arch>
+    <mac.jre.path>${project.build.directory}/mac_jre-${mac.arch}</mac.jre.path>
+    <mac.jre.url>https://api.adoptium.net/v3/binary/latest/${embedded.jre.version}/ga/mac/${mac.arch}/jre/hotspot/normal/eclipse?project=jdk</mac.jre.url>
+    <mac.build.directory>OpenRefine ${project.version}</mac.build.directory>
+    <mac.webapp.dir>./target/OpenRefine.app/Contents/Resources/webapp/</mac.webapp.dir>
+    <mac.icon.path>../graphics/icon/openrefine.icns</mac.icon.path>
+    <mac.dmg.filename>${project.build.finalName}-mac-${mac.arch}-${project.version}</mac.dmg.filename>
+    <mac.dmg.path>${project.build.directory}/${mac.dmg.filename}.dmg</mac.dmg.path>
+
+    <!-- The default value allows developers to use a self-signed cert locally. This is overridden for production releases -->
+    <!--    <mac.signing.identity>Code for Science and Society, Inc.</mac.signing.identity>-->
+    <mac.signing.identity>OpenRefine Code Signing</mac.signing.identity>
+    <!-- Apple Notarization settings -->
+    <apple.notarization.timeout>15m</apple.notarization.timeout>
+
+    <windows.jre.url>https://api.adoptium.net/v3/binary/latest/${embedded.jre.version}/ga/windows/x64/jre/hotspot/normal/eclipse?project=jdk</windows.jre.url>
+    <windows.copyright.line>Copyright (c) 2018 OpenRefine contributors, 2010 Google, Inc.</windows.copyright.line>
+    <windows.fullversion>0.0.0.0</windows.fullversion>
+    <skip.mac.packaging>false</skip.mac.packaging>
+  </properties>
+
+  <profiles>
+    <profile>
+      <id>default</id>
+      <activation>
+        <property>
+          <!-- Always active unless explicitly disabled -->
+          <name>!skipDefaultProfile</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>de.perdian.maven.plugins</groupId>
+            <artifactId>macosappbundler-maven-plugin</artifactId>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>package-distributions</id>
+                <configuration>
+                  <descriptors>
+                    <descriptor>assembly-linux.xml</descriptor>
+                  </descriptors>
+                  <attach>false</attach>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>linux</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>package-distributions</id>
+                <configuration>
+                  <descriptors>
+                    <descriptor>assembly-linux.xml</descriptor>
+                  </descriptors>
+                  <attach>false</attach>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>windows</id>
+      <properties>
+        <skip.mac.packaging>true</skip.mac.packaging>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>package-distributions</id>
+                <configuration>
+                  <descriptors>
+                    <descriptor>assembly-windows.xml</descriptor>
+                  </descriptors>
+                  <attach>false</attach>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <version>3.2.0</version>
+            <executions>
+              <execution>
+                <id>download-windows-jre</id>
+                <phase>prepare-package</phase>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <configuration>
+                  <target name="downloadWindowsJRE" description="Download Windows JRE">
+                    <exec dir="${project.build.directory}" executable="curl.exe" failonerror="true">
+                      <arg line="-S"/>
+                      <arg line="-L"/>
+                      <arg line="-C"/>
+                      <arg line="-"/>
+                      <arg line="-o"/>
+                      <arg line="windows_jre.zip"/>
+                      <arg line="${windows.jre.url}"/>
+                    </exec>
+                    <mkdir dir="${project.build.directory}/windows_jre"/>
+                    <unzip src="${project.build.directory}/windows_jre.zip" dest="${project.build.directory}/windows_jre">
+                      <mapper type="regexp" from="^([^/]*)/(.*)$$" to="\2"/>
+                    </unzip>
+                  </target>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>com.akathist.maven.plugins.launch4j</groupId>
+            <artifactId>launch4j-maven-plugin</artifactId>
+            <version>2.6.0</version>
+            <executions>
+              <execution>
+                <id>l4j-clui-with-jre</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>launch4j</goal>
+                </goals>
+                <configuration>
+                  <headerType>console</headerType>
+                  <outfile>target/openrefine_with_jre.exe</outfile>
+                  <jar>server/target/lib/openrefine-${project.version}-server.jar</jar>
+                  <dontWrapJar>true</dontWrapJar>
+                  <saveConfig>true</saveConfig>
+                  <icon>openrefine.ico</icon>
+                  <classPath>
+                    <mainClass>com.google.refine.Refine</mainClass>
+                    <jarLocation>server/target/lib/</jarLocation>
+                    <postCp>server/target/lib/*.jar</postCp>
+                  </classPath>
+                  <jre>
+                    <path>server/target/jre</path>
+                    <minVersion>${java.minversion}</minVersion>
+                    <maxVersion>${java.maxversion}</maxVersion>
+                    <initialHeapSize>512</initialHeapSize>
+                    <maxHeapSize>2048</maxHeapSize>
+                    <opts>
+                      <opt>-Djava.library.path=server/target/lib/native/windows</opt>
+                    </opts>
+                  </jre>
+                  <versionInfo>
+                    <fileVersion>${windows.fullversion}</fileVersion>
+                    <txtFileVersion>${project.version}</txtFileVersion>
+                    <fileDescription>openrefine</fileDescription>
+                    <copyright>${windows.copyright.line}</copyright>
+                    <productVersion>${windows.fullversion}</productVersion>
+                    <txtProductVersion>${project.version}</txtProductVersion>
+                    <productName>OpenRefine</productName>
+                    <internalName>openrefine</internalName>
+                    <originalFilename>openrefine.exe</originalFilename>
+                  </versionInfo>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.6.4</version>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <id>build-inno-setup</id>
+                <configuration>
+                  <executable>ISCC.exe</executable>
+                  <workingDirectory>target</workingDirectory>
+                  <arguments>
+                    <argument>-DMyAppVersion=${project.version}</argument>
+                    <argument>-DMyProgramFiles=openrefine-win-with-java-${project.version}</argument>
+                    <argument>openrefine.iss</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>notarize</id>
+      <activation>
+        <property>
+          <name>apple.notarization.key.id</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>notarize-dmg</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <configuration>
+                  <target name="notarizeDMG" description="Notarize DMG">
+                    <!-- TODO: This only uses antrun:exec, so could be exec:exec -->
+                    <!-- Send DMG file to Apple's notarization service -->
+                    <exec dir="${project.build.directory}" os="Mac OS X" executable="xcrun" failonerror="true">
+                      <arg value="notarytool"/>
+                      <arg value="submit"/>
+                      <arg value="${mac.dmg.path}"/>
+                      <arg value="--key-id"/>
+                      <arg value="${apple.notarization.key.id}"/>
+                      <arg value="--key"/>
+                      <arg value="${apple.notarization.key}"/>
+                      <arg value="--issuer"/>
+                      <arg value="${apple.notarization.issuer}"/>
+                      <arg value="--wait"/>
+                      <arg value="--timeout"/>
+                      <arg value="${apple.notarization.timeout}"/>
+                    </exec>
+
+                    <!-- Staple the notarization ticket to the DMG bundle -->
+                    <exec dir="${project.build.directory}" os="Mac OS X" executable="xcrun" failonerror="true">
+                      <arg value="stapler"/>
+                      <arg value="staple"/>
+                      <arg value="${mac.dmg.path}"/>
+                    </exec>
+
+                  </target>
+                </configuration>
+              </execution>
+
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
+  <build>
+    <plugins>
+      <plugin> <!-- gathers license files for all dependencies at packaging time -->
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>license-maven-plugin</artifactId>
+        <version>${license-plugin.version}</version>
+        <configuration>
+          <socketTimeout>10000</socketTimeout>
+          <connectTimeout>10000</connectTimeout>
+          <cleanLicensesOutputDirectory>true</cleanLicensesOutputDirectory>
+          <licensesConfigFile>${basedir}/manual_licenses.xml</licensesConfigFile>
+          <excludedArtifacts>oro</excludedArtifacts>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>generate-test-resources</phase>
+            <goals>
+              <goal>download-licenses</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- TODO: Is all this machinery still necessary? Can we simplify it with our new bundler? -->
+      <plugin> <!-- we attach a dummy main artifact for the packaging project,
+                because Appbundle requires one -->
+        <groupId>org.codehaus.gmaven</groupId>
+        <artifactId>groovy-maven-plugin</artifactId>
+        <version>2.1.1</version>
+        <executions>
+          <execution>
+            <id>set-main-artifact</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>execute</goal>
+            </goals>
+            <configuration>
+              <source>
+                project.artifact.setFile(new File("./packaging/target/dummy_artifact.jar"))
+              </source>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin> <!-- necessary for Appbundle -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.2.0</version>
+        <executions>
+          <execution>
+            <phase>prepare-package</phase>
+            <id>prepare-mac-bundle</id>
+            <configuration>
+              <skip>${skip.mac.packaging}</skip>
+              <target>
+                <mkdir dir="./target/"/>
+                <touch file="./target/dummy_artifact.jar" />
+
+                <mkdir dir="${mac.webapp.dir}" />
+
+                <copy todir="${mac.webapp.dir}">
+                  <fileset dir="${webapp.dir}">
+                    <include name="**/*"/>
+                    <exclude name="node_modules/**"/>
+                    <exclude name="package.json"/>
+                    <exclude name="package-lock.json"/>
+                    <exclude name="dependencies.json"/>
+                    <exclude name="copy-dependencies.js"/>
+                    <exclude name="README.md"/>
+                    <exclude name="**/test-output/**"/>
+                    <exclude name="WEB-INF/classes/**"/>
+                    <exclude name="WEB-INF/lib-local/**"/>
+                    <exclude name="WEB-INF/lib-local-src/**"/>
+                    <exclude name="WEB-INF/lib/icu4j*.jar"/>
+                  </fileset>
+                </copy>
+                <copy todir="${mac.webapp.dir}">
+                  <fileset dir="${webapp.dir}">
+                    <include name="**/*.properties"/>
+                  </fileset>
+                </copy>
+                <copy todir="${mac.webapp.dir}/WEB-INF/lib/">
+                  <fileset dir="${webapp.target}">
+                    <include name="openrefine-main.jar" />
+                  </fileset>
+                </copy>
+
+                <copy todir="${mac.webapp.dir}/licenses/"> <!-- licenses for the backend -->
+                  <fileset dir="${project.build.directory}/generated-resources/">
+                    <include name="licenses.xml" />
+                    <include name="licenses/**/*" />
+                  </fileset>
+                </copy>
+
+                <copy todir="${mac.webapp.dir}/licenses/licenses/"> <!-- licenses for the frontend -->
+                  <fileset dir="${webapp.dir}/licenses/">
+                    <include name="**/*" />
+                  </fileset>
+                </copy>
+
+                <copy todir="${mac.webapp.dir}/extensions">
+                  <fileset dir="../extensions">
+                    <include name="**/*"/>
+                    <exclude name="**/pom.xml"/>
+                    <exclude name="**/src/**"/>
+                    <exclude name="**/lib-local/**"/>
+                    <exclude name="**/lib-local-src/**"/>
+                    <exclude name="**/target/**" />
+                    <exclude name="**/tests/**" />
+                    <exclude name="**/*.java"/>
+                    <exclude name="**/.settings/**" />
+                    <exclude name="**/.project" />
+                  </fileset>
+                </copy>
+
+                <replace file="${mac.webapp.dir}/WEB-INF/web.xml">
+                  <replacefilter token="$VERSION" value="${project.version}"/>
+                </replace>
+
+                <replace file="${mac.webapp.dir}/WEB-INF/butterfly.properties">
+                  <replacefilter token="../../extensions" value="extensions"/>
+                </replace>
+
+                <!-- TODO: Is this still needed? -->
+                <!-- adapt file permissions, for https://github.com/OpenRefine/OpenRefine/issues/5160 -->
+                <exec executable="chmod">
+                  <arg line="-R" />
+                  <arg line="go+r" />
+                  <arg line="&quot;${mac.webapp.dir}/&quot;" />
+                </exec>
+
+                <!-- Codesign jars with native code in them (we'd prefer the authors do this, but not all do) -->
+                <exec executable="/bin/bash" os="Mac OS X" dir="${mac.webapp.dir}" failonerror="true">
+                  <arg value="${basedir}/apple_certs/codesign.sh" />
+                  <arg value="." />
+                  <arg value="${mac.signing.identity}" />
+                  <arg value="${basedir}/Entitlements.plist" />
+                </exec>
+
+              </target>
+
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>download-jre</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <skip>${skip.mac.packaging}</skip>
+              <target name="downloadJRE" description="Download JRE">
+                <!-- Download JRE for the configured macOS architecture -->
+                <exec dir="${project.build.directory}" executable="curl">
+                  <arg line="-S"/>
+                  <arg line="-L"/>
+                  <arg line="-C"/>
+                  <arg line="-"/>
+                  <arg line="-o"/>
+                  <arg line="mac_jre.tar.gz"/>
+                  <arg line="${mac.jre.url}"/>
+                </exec>
+
+                <!-- Untar the macOS JRE archive -->
+                <mkdir dir="${mac.jre.path}"/>
+                <exec dir="${project.build.directory}" executable="tar">
+                  <arg line="-zxf"/>
+                  <arg line="mac_jre.tar.gz"/>
+                  <arg line="-C &quot;${mac.jre.path}&quot; --strip-components=1"/>
+                </exec>
+
+                <!-- TODO: Is this still needed? -->
+                <!-- remove JRE legal folder, cannot be signed -->
+                <exec dir="${project.build.directory}" os="Mac OS X" executable="rm">
+                  <arg line="-r"/>
+                  <arg line="&quot;${mac.jre.path}/Contents/Home/legal&quot;"/>
+                </exec>
+
+                <!-- Make sure we can write to the JRE contents -->
+                <exec dir="${project.build.directory}" os="Mac OS X" executable="chmod">
+                  <arg line="-R"/>
+                  <arg line="u+w"/>
+                  <arg line="&quot;${mac.jre.path}/Contents&quot;"/>
+                </exec>
+
+                <!-- Clear the quarantine bit set on downloaded files recursively on JRE -->
+                <exec dir="${project.build.directory}" os="Mac OS X" executable="xattr">
+                  <arg line="-rd"/>
+                  <arg line="com.apple.quarantine"/>
+                  <arg line="&quot;${mac.jre.path}/Contents&quot;"/>
+                </exec>
+
+                <!-- Codesign JRE (not sure this is still necessary) -->
+                <exec dir="${project.build.directory}" os="Mac OS X" executable="codesign">
+                  <arg value="--entitlements" />
+                  <arg value="../Entitlements.plist" />
+                  <arg value="--sign"/>
+                  <arg value="${mac.signing.identity}"/>
+                  <arg value="--deep"/>
+                  <arg value="--force"/>
+                  <arg value="--timestamp"/>
+                  <arg value="--options"/>
+                  <arg value="runtime"/>
+                  <arg value="${mac.jre.path}/Contents/Home/lib/libjli.dylib" />
+                </exec>
+
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.6.0</version>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+    </plugins>
+    <pluginManagement>
+      <plugins>
+        <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
+        <plugin>
+          <groupId>org.eclipse.m2e</groupId>
+          <artifactId>lifecycle-mapping</artifactId>
+          <version>1.0.0</version>
+          <configuration>
+            <lifecycleMappingMetadata>
+              <pluginExecutions>
+                <pluginExecution>
+                  <pluginExecutionFilter>
+                    <groupId>
+                      org.apache.maven.plugins
+                    </groupId>
+                    <artifactId>
+                      maven-antrun-plugin
+                    </artifactId>
+                    <versionRange>[1.4,)</versionRange>
+                    <goals>
+                      <goal>run</goal>
+                    </goals>
+                  </pluginExecutionFilter>
+                  <action>
+                    <ignore></ignore>
+                  </action>
+                </pluginExecution>
+              </pluginExecutions>
+            </lifecycleMappingMetadata>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <version>3.8.0</version>
+          <executions>
+            <execution>
+              <id>package-distributions</id>
+              <goals>
+                <goal>single</goal>
+              </goals>
+              <phase>package</phase>
+              <configuration>
+                <descriptors>
+                  <!-- TBD -->
+                </descriptors>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>de.perdian.maven.plugins</groupId>
+          <artifactId>macosappbundler-maven-plugin</artifactId>
+          <version>1.21.3</version>
+          <configuration>
+            <plist>
+              <JVMMainClassName>com.google.refine.Refine</JVMMainClassName>
+              <CFBundleName>OpenRefine</CFBundleName>
+              <CFBundleIconFile>${mac.icon.path}</CFBundleIconFile>
+              <JVMVersion>${java.minversion}+</JVMVersion>
+              <JVMLogLevel>INFO</JVMLogLevel>
+              <JVMOptions>
+                <param>-Xms512M</param>
+                <param>-Xmx2048M</param>
+                <param>-Drefine.version=${project.version}</param>
+                <param>-Drefine.webapp=Contents/Resources/webapp</param>
+              </JVMOptions>
+            </plist>
+            <jdk>
+              <include>true</include>
+              <location>${mac.jre.path}</location>
+            </jdk>
+            <dmg>
+              <generate>true</generate>
+              <appendVersion>false</appendVersion>
+              <additionalResources>
+                <fileSet>
+                  <directory>target</directory>
+                  <includes>
+                    <include>OpenRefine.app/Contents/Resources/webapp/**/**</include>
+                  </includes>
+                </fileSet>
+              </additionalResources>
+            </dmg>
+            <app>
+              <additionalResources>
+                <fileSet>
+                  <outputDirectory>Contents/Java/classpath</outputDirectory>
+                  <directory>${rootdir}/server/target/lib/</directory>
+                  <includes>
+                    <include>*.jar</include>
+                  </includes>
+                </fileSet>
+                <fileSet>
+                  <outputDirectory>Contents/Java/classpath</outputDirectory>
+                  <directory>${rootdir}/server/target</directory>
+                  <includes>
+                    <include>openrefine-${project.version}-server.jar</include>
+                  </includes>
+                </fileSet>
+              </additionalResources>
+            </app>
+            <codesign>
+              <identity>${mac.signing.identity}</identity>
+              <enable>true</enable>
+              <preserveMetadata>entitlements</preserveMetadata>
+              <hardened>true</hardened>
+              <entitlementsFile>${basedir}/Entitlements.plist</entitlementsFile>
+            </codesign>
+          </configuration>
+          <executions>
+            <execution>
+              <id>bundle-mac</id>
+              <phase>prepare-package</phase>
+              <goals>
+                <goal>bundle</goal>
+              </goals>
+              <configuration>
+                <jdk>
+                  <location>${mac.jre.path}</location>
+                </jdk>
+                <dmg>
+                  <dmgFileName>${mac.dmg.filename}</dmgFileName>
+                </dmg>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-deploy-plugin</artifactId>
+          <version>${maven-deploy-plugin.version}</version>
+          <configuration>
+            <skip>false</skip>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+  <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>server</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+</project>
