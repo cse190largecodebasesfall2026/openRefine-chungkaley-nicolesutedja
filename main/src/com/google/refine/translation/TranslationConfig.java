@@ -1,19 +1,21 @@
+
 package com.google.refine.translation;
 
 /**
  * Reads the LibreTranslate server URL and optional API key.
  *
- * <p>Each value is checked in this order:
+ * <p>
+ * Each value is checked in this order:
  * <ol>
- *   <li>JVM system property (e.g. {@code -Drefine.translate.url=...})</li>
- *   <li>Environment variable (e.g. {@code LIBRETRANSLATE_URL=...})</li>
- *   <li>Built-in default (URL only: {@value #DEFAULT_URL})</li>
+ * <li>JVM system property (e.g. {@code -Drefine.translate.url=...})</li>
+ * <li>Environment variable (e.g. {@code LIBRETRANSLATE_URL=...})</li>
+ * <li>Built-in default (URL only: {@value #DEFAULT_URL})</li>
  * </ol>
  *
- * <p>To configure without committing credentials, copy the commented-out example
- * lines from {@code refine.ini} into {@code refine-dev.ini} (which is gitignored)
- * and start OpenRefine with {@code ./refine -c refine-dev.ini}. The ini script
- * exports those lines as environment variables, which this class then reads.
+ * <p>
+ * To configure without committing credentials, copy the commented-out example lines from {@code refine.ini} into
+ * {@code refine-dev.ini} (which is gitignored) and start OpenRefine with {@code ./refine -c refine-dev.ini}. The ini
+ * script exports those lines as environment variables, which this class then reads.
  */
 public final class TranslationConfig {
 

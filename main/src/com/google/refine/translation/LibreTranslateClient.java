@@ -1,3 +1,4 @@
+
 package com.google.refine.translation;
 
 import java.io.IOException;
@@ -15,8 +16,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /**
  * Sends a single translation request to a LibreTranslate server.
  *
- * <p>Error messages produced by this class never include the API key or the
- * server URL, so they are safe to display in the UI or store in cells.
+ * <p>
+ * Error messages produced by this class never include the API key or the server URL, so they are safe to display in the
+ * UI or store in cells.
  */
 public class LibreTranslateClient {
 
@@ -38,10 +40,13 @@ public class LibreTranslateClient {
     /**
      * Translates {@code text} from {@code sourceLang} to {@code targetLang}.
      *
-     * @param sourceLang BCP-47 language code or {@code "auto"} for detection
-     * @param targetLang BCP-47 language code
+     * @param sourceLang
+     *            BCP-47 language code or {@code "auto"} for detection
+     * @param targetLang
+     *            BCP-47 language code
      * @return the translated text
-     * @throws TranslationException if the request fails or the response is unusable
+     * @throws TranslationException
+     *             if the request fails or the response is unusable
      */
     public String translate(String text, String sourceLang, String targetLang)
             throws TranslationException {
@@ -71,8 +76,13 @@ public class LibreTranslateClient {
         HttpResponse<String> response;
         try {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (IOException | InterruptedException e) {
-            throw new TranslationException("Translation service unreachable", e);
+        } catch (IOException e) {
+            // Connection-level failure: the server itself is unreachable (Decision D6).
+            throw new TranslationServiceUnreachableException("Translation service unreachable", e);
+        } catch (InterruptedException e) {
+            // The thread is interrupted when the user cancels the process; not a service failure.
+            Thread.currentThread().interrupt();
+            throw new TranslationException("Translation interrupted", e);
         }
 
         int status = response.statusCode();

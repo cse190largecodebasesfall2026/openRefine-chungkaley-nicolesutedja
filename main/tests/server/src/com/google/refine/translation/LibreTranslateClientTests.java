@@ -1,3 +1,4 @@
+
 package com.google.refine.translation;
 
 import static org.testng.Assert.assertEquals;
@@ -112,6 +113,31 @@ public class LibreTranslateClientTests {
             String urlWithSlash = server.url("/").toString();
             String result = new LibreTranslateClient(urlWithSlash, null).translate("Hello", "en", "es");
             assertEquals(result, "Hola");
+        }
+    }
+
+    @Test
+    public void testUnreachableServerThrowsUnreachableException() throws Exception {
+        String url;
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            url = server.url("/").toString();
+        } // server is now closed: nothing listens on that port
+
+        expectThrows(TranslationServiceUnreachableException.class,
+                () -> new LibreTranslateClient(url, null).translate("hello", "en", "es"));
+    }
+
+    @Test
+    public void testHttpErrorIsNotReportedAsUnreachable() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            server.enqueue(new MockResponse.Builder().code(500).build());
+
+            TranslationException e = expectThrows(TranslationException.class,
+                    () -> client(server, null).translate("hello", "en", "es"));
+            assertFalse(e instanceof TranslationServiceUnreachableException,
+                    "An HTTP error means the server is up; it must follow the on-error policy");
         }
     }
 }

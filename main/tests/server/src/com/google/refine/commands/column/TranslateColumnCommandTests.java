@@ -1,3 +1,4 @@
+
 package com.google.refine.commands.column;
 
 import static org.mockito.Mockito.when;

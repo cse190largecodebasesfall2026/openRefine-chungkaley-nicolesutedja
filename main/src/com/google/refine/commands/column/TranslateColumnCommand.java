@@ -1,3 +1,4 @@
+
 package com.google.refine.commands.column;
 
 import javax.servlet.http.HttpServletRequest;
@@ -12,8 +13,9 @@ import com.google.refine.operations.column.ColumnTranslationOperation;
 /**
  * Creates a {@link ColumnTranslationOperation} from an HTTP request.
  *
- * <p>The engine config sent by the browser decides which rows are translated:
- * the current facet selection, or an empty config for all rows (Decision B).
+ * <p>
+ * The engine config sent by the browser decides which rows are translated: the current facet selection, or an empty
+ * config for all rows (Decision B).
  */
 public class TranslateColumnCommand extends EngineDependentCommand {
 

@@ -172,6 +172,118 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
     });
   };
 
+  var doTranslateColumn = function() {
+    // Must match TranslationLanguages.TARGET_LANGUAGES on the backend.
+    var languageCodes = [ "en", "es", "zh" ];
+
+    var frame = $(DOM.loadHTML("core", "scripts/views/data-table/translate-column-dialog.html"));
+    var elmts = DOM.bind(frame);
+    elmts.dialogHeader.text($.i18n('core-views/translate-col-title', column.name));
+
+    elmts.or_views_sourceLang.text($.i18n('core-views/translate-source-lang'));
+    elmts.or_views_targetLang.text($.i18n('core-views/translate-target-lang'));
+    elmts.or_views_newCol.text($.i18n('core-views/new-col-name'));
+    elmts.or_views_onErr.text($.i18n('core-views/on-error'));
+    elmts.or_views_setBlank.text($.i18n('core-views/set-blank'));
+    elmts.or_views_storeErr.text($.i18n('core-views/store-err'));
+    elmts.or_views_copyVal.text($.i18n('core-views/copy-val'));
+    elmts.okButton.html($.i18n('core-buttons/ok'));
+    elmts.cancelButton.text($.i18n('core-buttons/cancel'));
+
+    // Source: auto-detect by default (Decision 6). Target: no default, user must choose (D2).
+    $('<option>').val('auto').text($.i18n('core-views/translate-detect-lang')).appendTo(elmts.sourceLangSelect);
+    $('<option>').val('').text($.i18n('core-views/translate-choose-lang')).appendTo(elmts.targetLangSelect);
+    languageCodes.forEach(function(code) {
+      var label = $.i18n('core-views/translate-lang-' + code);
+      $('<option>').val(code).text(label).appendTo(elmts.sourceLangSelect);
+      $('<option>').val(code).text(label).appendTo(elmts.targetLangSelect);
+    });
+
+    var level = DialogSystem.showDialog(frame);
+    var dismiss = function() { DialogSystem.dismissUntil(level - 1); };
+
+    // The default name follows the target language until the user edits the name (D3).
+    var nameEditedByUser = false;
+    var submitting = false;
+
+    var getColumnName = function() {
+      return jQueryTrim(elmts.columnNameInput[0].value);
+    };
+
+    // Shows the inline warnings and enables OK only when the form is valid (D2, D4).
+    var validate = function() {
+      var source = elmts.sourceLangSelect.val();
+      var target = elmts.targetLangSelect.val();
+      var columnName = getColumnName();
+
+      var sameLanguage = target !== '' && source === target;
+      elmts.languageWarning.text(sameLanguage ? $.i18n('core-views/translate-warning-same-lang') : '')
+          .toggle(sameLanguage);
+
+      var nameWarning = '';
+      if (target !== '' && !columnName.length) {
+        nameWarning = $.i18n('core-views/warning-col-name');
+      } else if (columnName.length && Refine.columnNameToColumnIndex(columnName) >= 0) {
+        nameWarning = $.i18n('core-views/translate-warning-col-exists', columnName);
+      }
+      elmts.nameWarning.text(nameWarning).toggle(nameWarning !== '');
+
+      var valid = target !== '' && !sameLanguage && nameWarning === '';
+      elmts.okButton.prop('disabled', !valid || submitting);
+      return valid;
+    };
+
+    elmts.targetLangSelect.on('change', function() {
+      var target = elmts.targetLangSelect.val();
+      if (!nameEditedByUser && target !== '') {
+        elmts.columnNameInput.val(column.name + '_' + target);
+      }
+      validate();
+    });
+    elmts.sourceLangSelect.on('change', validate);
+    elmts.columnNameInput.on('input', function() {
+      nameEditedByUser = true;
+      validate();
+    });
+
+    elmts.cancelButton.on('click', dismiss);
+    elmts.form.on('submit', function(event) {
+      event.preventDefault();
+      if (submitting || !validate()) {
+        return;
+      }
+      submitting = true;
+      validate(); // disables OK while the request is in flight
+      elmts.requestError.hide();
+
+      Refine.postCoreProcess(
+        "translate-column",
+        {
+          baseColumnName: column.name,
+          sourceLang: elmts.sourceLangSelect.val(),
+          targetLang: elmts.targetLangSelect.val(),
+          newColumnName: getColumnName(),
+          onError: elmts.form.find('input[name="translate-column-onerror-choice"]:checked').val()
+        },
+        null,
+        { modelsChanged: true, rowIdsPreserved: true, recordIdsPreserved: true },
+        {
+          // Progress and later failures are shown by the standard process panel (D5, D6).
+          onDone: dismiss,
+          // A rejected request is shown inside the dialog, which stays open (D6).
+          onError: function(o) {
+            submitting = false;
+            elmts.requestError.text($.i18n('core-views/translate-error-request', o.message)).show();
+            validate();
+          }
+        }
+      );
+    });
+
+    validate();
+    elmts.targetLangSelect.trigger('focus');
+  };
+
   var doAddColumnByReconciliation = function() {
     var columnIndex = Refine.columnNameToColumnIndex(column.name);
     var o = DataTableView.sampleVisibleRows(column);
@@ -605,6 +717,11 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
         label: $.i18n('core-views/add-by-urls'),
         icon: 'images/operations/fetch-urls.svg',
         click: doAddColumnByFetchingURLs
+      },
+      {
+        id: "core/translate-column",
+        label: $.i18n('core-views/translate-col'),
+        click: doTranslateColumn
       },
       {
         id: "core/add-column-by-reconciliation",

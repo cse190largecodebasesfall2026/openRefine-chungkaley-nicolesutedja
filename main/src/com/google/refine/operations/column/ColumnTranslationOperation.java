@@ -1,6 +1,9 @@
+
 package com.google.refine.operations.column;
 
 import java.io.Serializable;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,25 +37,26 @@ import com.google.refine.translation.LibreTranslateClient;
 import com.google.refine.translation.TranslationConfig;
 import com.google.refine.translation.TranslationException;
 import com.google.refine.translation.TranslationLanguages;
+import com.google.refine.translation.TranslationServiceUnreachableException;
 
 /**
  * Adds a new column whose cells are the translated contents of a source column.
  *
- * <p>The new column is inserted immediately to the right of the source column.
- * Row order and all other columns are preserved. Translation is done by a
- * LibreTranslate server whose URL and optional API key are read from JVM
- * system properties or environment variables at run time (never stored in the
- * serialized operation JSON).
+ * <p>
+ * The new column is inserted immediately to the right of the source column. Row order and all other columns are
+ * preserved. Translation is done by a LibreTranslate server whose URL and optional API key are read from JVM system
+ * properties or environment variables at run time (never stored in the serialized operation JSON).
  *
- * <p>Edge-case behaviour (all documented in {@code Assignment3/design.md}):
+ * <p>
+ * Edge-case behaviour (all documented in {@code Assignment3/design.md}):
  * <ul>
- *   <li>Blank / null cells are skipped and left blank in the new column.</li>
- *   <li>Non-string cells (numbers, dates, …) are copied unchanged.</li>
- *   <li>Identical text values are translated only once per run (cache).</li>
- *   <li>If the requested column name is already taken, a numeric suffix is
- *       appended (e.g. {@code review_es2}) without warning the user at this
- *       layer — the frontend dialog warns before submit.</li>
- *   <li>Translation failures per cell follow the {@link OnError} policy.</li>
+ * <li>Blank / null cells are skipped and left blank in the new column.</li>
+ * <li>Non-string cells (numbers, dates, …) are copied unchanged.</li>
+ * <li>Identical text values are translated only once per run (cache).</li>
+ * <li>If the requested column name is already taken, a numeric suffix is appended (e.g. {@code review_es2}) without
+ * warning the user at this layer — the frontend dialog warns before submit.</li>
+ * <li>Translation failures per cell follow the {@link OnError} policy.</li>
+ * <li>If the server is unreachable, the whole run fails with a clear message and no column is added (Decision D6).</li>
  * </ul>
  */
 public class ColumnTranslationOperation extends EngineDependentOperation {
@@ -214,7 +218,20 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
 
             for (int i = 0; i < count; i++) {
                 RowToTranslate item = toTranslate.get(i);
-                Serializable newValue = translateCell(item.cell, client, cache);
+                Serializable newValue;
+                try {
+                    newValue = translateCell(item.cell, client, cache);
+                } catch (TranslationServiceUnreachableException e) {
+                    // Server down: abort the whole run and add no column (Decision D6).
+                    // If the user canceled, the cancel itself explains the stop; report nothing.
+                    if (!_canceled) {
+                        _project.processManager.onFailedProcess(this, new Exception(
+                                "Translation service unreachable at " + displayUrl(url)
+                                        + ". Is LibreTranslate running?",
+                                e));
+                    }
+                    return;
+                }
                 if (newValue != null) {
                     results.add(new CellAtRow(item.rowIndex, new Cell(newValue, null)));
                 }
@@ -239,11 +256,12 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
         }
 
         /**
-         * Returns the value to store in the new column for a single source cell,
-         * or {@code null} to leave the new cell blank.
+         * Returns the value to store in the new column for a single source cell, or {@code null} to leave the new cell
+         * blank.
          */
         private Serializable translateCell(
-                Cell cell, LibreTranslateClient client, Map<String, String> cache) {
+                Cell cell, LibreTranslateClient client, Map<String, String> cache)
+                throws TranslationServiceUnreachableException {
             // Null / blank cell → skip, leave blank (Decision C).
             if (cell == null || cell.value == null) {
                 return null;
@@ -269,6 +287,8 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                 String translated = client.translate(text, _sourceLang, _targetLang);
                 cache.put(cacheKey, translated);
                 return translated;
+            } catch (TranslationServiceUnreachableException e) {
+                throw e; // handled by run(): aborts the whole operation
             } catch (TranslationException e) {
                 // Apply on-error policy (Decision 7 / Decision G).
                 return switch (_onError) {
@@ -277,6 +297,22 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                     default -> null; // SetToBlank
                 };
             }
+        }
+    }
+
+    /**
+     * Returns only the scheme, host and port of the server URL, so that credentials embedded in the URL (e.g.
+     * {@code http://user:pass@host}) or query parameters are never shown to the user.
+     */
+    static String displayUrl(String url) {
+        try {
+            URI uri = new URI(url);
+            if (uri.getScheme() == null || uri.getHost() == null) {
+                return "the configured URL";
+            }
+            return uri.getScheme() + "://" + uri.getHost() + (uri.getPort() != -1 ? ":" + uri.getPort() : "");
+        } catch (URISyntaxException e) {
+            return "the configured URL";
         }
     }
 

@@ -1,3 +1,4 @@
+
 package com.google.refine.operations.column;
 
 import static org.testng.Assert.assertEquals;
@@ -384,5 +385,62 @@ public class ColumnTranslationOperationTests extends RefineTest {
         mockwebserver3.RecordedRequest req = server.takeRequest();
         String body = req.getBody().utf8();
         assertTrue(body.contains("\"source\":\"auto\""), "Body: " + body);
+    }
+
+    // ── Unreachable service (Decision D6) ─────────────────────────────────────
+
+    /** Returns the URL of a port where nothing is listening. */
+    private String closedServerUrl() throws Exception {
+        try (MockWebServer closed = new MockWebServer()) {
+            closed.start();
+            return closed.url("/").toString();
+        }
+    }
+
+    @Test
+    public void testUnreachableServiceFailsWithoutAddingColumn() throws Exception {
+        System.setProperty(TranslationConfig.URL_PROPERTY, closedServerUrl());
+        Project project = createProject(
+                new String[] { "review" },
+                new Serializable[][] { { "Hello" }, { "World" } });
+
+        runOperation(new ColumnTranslationOperation(
+                ENGINE_CONFIG, "review", "en", "es", "review_es", OnError.SetToBlank), project);
+
+        List<String> colNames = project.columnModel.columns.stream()
+                .map(Column::getName).toList();
+        assertEquals(colNames, List.of("review"), "No column must be added when the service is down");
+        assertEquals(project.history.getLastPastEntries(10).size(), 0, "No history entry must be created");
+
+        List<?> exceptions = project.processManager.getJsonExceptions();
+        assertEquals(exceptions.size(), 1);
+        String message = ParsingUtilities.mapper.writeValueAsString(exceptions.get(0));
+        assertTrue(message.contains("Translation service unreachable at http://localhost:"), message);
+        assertTrue(message.contains("Is LibreTranslate running?"), message);
+    }
+
+    @Test
+    public void testUnreachableMessageDoesNotLeakUrlCredentials() throws Exception {
+        String closed = closedServerUrl(); // e.g. http://localhost:12345/
+        String withCredentials = closed.replace("http://", "http://user:secret-pass@") + "?api_key=secret-key";
+        System.setProperty(TranslationConfig.URL_PROPERTY, withCredentials);
+        Project project = createProject(
+                new String[] { "review" },
+                new Serializable[][] { { "Hello" } });
+
+        runOperation(new ColumnTranslationOperation(
+                ENGINE_CONFIG, "review", "en", "es", "review_es", OnError.SetToBlank), project);
+
+        String message = ParsingUtilities.mapper.writeValueAsString(project.processManager.getJsonExceptions());
+        assertTrue(message.contains("unreachable"), message);
+        assertTrue(!message.contains("secret-pass"), "Password must not appear: " + message);
+        assertTrue(!message.contains("secret-key"), "Key must not appear: " + message);
+    }
+
+    @Test
+    public void testDisplayUrl() {
+        assertEquals(ColumnTranslationOperation.displayUrl("http://localhost:5000"), "http://localhost:5000");
+        assertEquals(ColumnTranslationOperation.displayUrl("https://u:p@example.org/path?k=v"), "https://example.org");
+        assertEquals(ColumnTranslationOperation.displayUrl("not a url"), "the configured URL");
     }
 }

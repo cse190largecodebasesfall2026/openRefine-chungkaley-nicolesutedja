@@ -597,6 +597,7 @@ function init() {
 
       "styles/dialogs/clustering-functions-dialog.css",
       "styles/dialogs/expression-preview-dialog.css",
+      "styles/dialogs/translate-column-dialog.css",
       "styles/dialogs/clustering-dialog.css",
       "styles/dialogs/scatterplot-dialog.css",
       "styles/dialogs/column-reordering-dialog.css",
