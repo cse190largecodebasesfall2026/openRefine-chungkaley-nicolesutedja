@@ -721,6 +721,7 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
       {
         id: "core/translate-column",
         label: $.i18n('core-views/translate-col'),
+        icon: 'images/operations/translate.svg',
         click: doTranslateColumn
       },
       {

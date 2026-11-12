@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+
+  <!--
+    Both arrows share rotation center (50,50).
+    Arc body: outer r=42, inner r=34, thickness=8.
+    Top-right arrow: 80° clockwise sweep from 285° to 5°.
+      Outer arc: (61,9) → (92,54)
+      Inner arc: (59,17) → (84,53)
+    Arrowhead at arc end: outer base (94,54), tip (87,65), inner base (84,53).
+    Bottom-left arrow: 180° rotation of top-right around (50,50).
+  -->
+
+  <!-- Top-right curved arrow (clockwise, arrowhead pointing downward) -->
+  <path d="M 61,9 A 42,42 0 0,1 92,54 L 94,54 L 87,65 L 84,53 A 34,34 0 0,0 59,17 Z" fill="black"/>
+
+  <!-- Bottom-left curved arrow (clockwise, arrowhead pointing upward) -->
+  <path d="M 39,91 A 42,42 0 0,1 8,46 L 6,46 L 13,35 L 16,47 A 34,34 0 0,0 41,83 Z" fill="black"/>
+
+  <!-- Speech bubble 1: outlined (white), top-left, contains Chinese character -->
+  <path d="M 12,14 H 53 Q 60,14 60,21 V 55 Q 60,62 53,62 H 32 L 16,72 L 22,62 H 12 Q 5,62 5,55 V 21 Q 5,14 12,14 Z"
+        fill="white" stroke="black" stroke-width="4" stroke-linejoin="round"/>
+  <text x="32" y="48" text-anchor="middle" font-size="28" fill="black" font-family="serif">&#25991;</text>
+
+  <!-- Speech bubble 2: filled (black), bottom-right, contains letter A -->
+  <path d="M 47,40 H 88 Q 95,40 95,47 V 79 Q 95,86 88,86 H 76 L 68,97 L 58,86 H 47 Q 40,86 40,79 V 47 Q 40,40 47,40 Z"
+        fill="black"/>
+  <text x="67" y="73" text-anchor="middle" font-size="28" fill="white" font-family="sans-serif" font-weight="bold">A</text>
+
+</svg>
