@@ -290,7 +290,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
             } catch (TranslationServiceUnreachableException e) {
                 throw e; // handled by run(): aborts the whole operation
             } catch (TranslationException e) {
-                // Apply on-error policy (Decision 7 / Decision G).
+                // Apply on-error policy (Decision 7).
                 return switch (_onError) {
                     case StoreError -> new EvalError(e.getMessage());
                     case KeepOriginal -> text;

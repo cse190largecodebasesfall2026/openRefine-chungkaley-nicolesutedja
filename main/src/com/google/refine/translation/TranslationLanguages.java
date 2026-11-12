@@ -7,9 +7,10 @@ import java.util.Set;
  * The languages supported by the Translate Column feature.
  *
  * <p>
- * To add a language, add its BCP-47 code to {@link #SOURCE_LANGUAGES} and {@link #TARGET_LANGUAGES}, then add a
- * frontend i18n key {@code "core-views/translate-lang-<code>"} to
- * {@code main/webapp/modules/core/langs/translation-en.json}.
+ * To add a language, add its code to {@link #SOURCE_LANGUAGES} and {@link #TARGET_LANGUAGES}, add the same code to
+ * {@code languageCodes} in {@code doTranslateColumn()} in {@code menu-edit-column.js}, and add a frontend i18n key
+ * {@code "core-views/translate-lang-<code>"} to {@code main/webapp/modules/core/langs/translation-en.json}. The code
+ * must be one the LibreTranslate server lists at {@code GET /languages}.
  */
 public final class TranslationLanguages {
 

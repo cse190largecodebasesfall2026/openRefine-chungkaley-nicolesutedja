@@ -2,7 +2,7 @@
 
 ## Overview
 
-We added a **Translate Column** feature to OpenRefine. The user picks an existing text column, chooses a target language (and optionally a source language), names the new column, and OpenRefine calls a translation API once per cell and writes the results into a new column immediately to the right of the source. The source column is preserved, row order is preserved, and the operation is recorded in history so it can be undone.
+We added a **Translate Column** feature to OpenRefine. The user picks an existing text column, chooses a target language (and optionally a source language), names the new column, and OpenRefine calls a translation API once per unique cell value (repeated text is served from a per-run cache) and writes the results into a new column immediately to the right of the source. The source column is preserved, row order is preserved, and the operation is recorded in history so it can be undone.
 
 ## Relevant Code Structure
 
@@ -43,7 +43,8 @@ We added a **Translate Column** feature to OpenRefine. The user picks an existin
   `TranslationLanguages`
   - Defines `SOURCE_LANGUAGES = {"auto", "en", "es", "zh"}` and `TARGET_LANGUAGES = {"en", "es", "zh"}`
   - Provides `isValidSource()` / `isValidTarget()` helpers
-  - To add a language: add its code here and a matching i18n key in `translation-en.json`
+  - To add a language: (1) add its code to `SOURCE_LANGUAGES` and `TARGET_LANGUAGES` here, (2) add it to `languageCodes` in `doTranslateColumn()` in `menu-edit-column.js`, which fills both dropdowns, and (3) add a `core-views/translate-lang-<code>` key to `translation-en.json`. The code must be one your LibreTranslate server supports (check `GET /languages`).
+  - The Chinese code `zh` is written in two places, `ZH_CODE` here and `languageCodes` in `menu-edit-column.js`, so if your server uses a different code (for example `zh-Hans`), change both, and rename the `core-views/translate-lang-zh` key to match.
 
 - **`translation/TranslationException.java`**
   `TranslationException`
@@ -55,7 +56,13 @@ We added a **Translate Column** feature to OpenRefine. The user picks an existin
   - Signals the LibreTranslate server itself is unreachable
   - Caught in `ColumnTranslationProcess.run()` to abort the whole operation
 
-### Modified Java files
+### Modified files
+
+- **`refine`** (Linux/macOS launch script; see Decision 19)
+  - After loading the ini, re-exports `LIBRETRANSLATE_URL` and `LIBRETRANSLATE_API_KEY` as plain environment variables so the JVM can read them
+
+- **`refine.ini`**
+  - Commented-out example `LIBRETRANSLATE_URL` / `LIBRETRANSLATE_API_KEY` lines, with a note to copy them into the gitignored `refine-dev.ini`
 
 - **`resources/com/google/refine/operations/OperationDescription.properties`**
   - `column_translation_brief` — "Create column {0} by translating column {1} from {2} to {3}"
@@ -63,16 +70,26 @@ We added a **Translate Column** feature to OpenRefine. The user picks an existin
 
 - **`webapp/modules/core/MOD-INF/controller.js`**
   - Registered the `translate-column` command: `RS.registerCommand(module, "translate-column", new Packages.com.google.refine.commands.column.TranslateColumnCommand())`
-
-### New frontend files
+  - Registered the `column-translation` operation: `OR.registerOperation(module, "column-translation", Packages.com.google.refine.operations.column.ColumnTranslationOperation)`
+  - Added `styles/dialogs/translate-column-dialog.css` to the core stylesheet list in `init()`
 
 - **`scripts/views/data-table/menu-edit-column.js`**
-  - Added `doTranslateColumn()` (lines ~175–285):
+  - Added `doTranslateColumn()` (lines 175–285):
     - Loads the dialog HTML and populates language dropdowns
     - Auto-fills the column name as `<column>_<code>` when target language is selected
     - Validates inline: same-language warning, name-collision warning, OK disabled until valid
     - On submit, POSTs to `/command/core/translate-column` via `Refine.postCoreProcess`
-  - Added menu entry `core/translate-column` ("Translate column…") immediately after "Add column by fetching URLs…" (line 721)
+  - Added menu entry `core/translate-column` ("Translate column…") immediately after "Add column by fetching URLs…" (lines 721–726), with the icon `images/operations/translate.svg`
+
+- **`langs/translation-en.json`**
+  - 12 new `core-views/translate-*` keys: menu label, dialog title, field labels, "Detect automatically", "Choose a language…", three language names, two inline warnings, and the request-error template
+  - Existing keys reused where wording is identical: `new-col-name`, `on-error`, `set-blank`, `store-err`, `copy-val`, OK, Cancel
+
+- **`tests/cypress/cypress/plugins/index.js`**
+  - Starts the fake LibreTranslate server (`fake-libretranslate.js`, port 5055 by default) when Cypress loads; if the port is unavailable it only logs a warning, so unrelated specs still run
+  - Registers the fake server's Cypress tasks, which the tests use to switch it "down"
+
+### New frontend files
 
 - **`scripts/views/data-table/translate-column-dialog.html`**
   - Source-language select (defaults to "Detect automatically")
@@ -85,12 +102,27 @@ We added a **Translate Column** feature to OpenRefine. The user picks an existin
 - **`styles/dialogs/translate-column-dialog.css`**
   - `.translate-column-warning` — red inline warning text
   - `.translate-column-error` — red bold request-error block
+  - Registered in `controller.js` (see Modified files)
 
-- **`langs/translation-en.json`**
-  - 12 new `core-views/translate-*` keys: menu label, dialog title, field labels, "Detect automatically", "Choose a language…", three language names, two inline warnings, and the request-error template
-  - Existing keys reused where wording is identical: `new-col-name`, `on-error`, `set-blank`, `store-err`, `copy-val`, OK, Cancel
+- **`images/operations/translate.svg`**
+  - Icon shown next to "Translate column…" in the column menu
 
 ### New test files
+
+- **`tests/server/.../ColumnTranslationOperationTests.java`**
+  Tests the operation and its `ColumnTranslationProcess` against a `MockWebServer`:
+  - Serialization, including that the saved operation JSON contains no URL or API key
+  - `validate()` rejects a missing base column, an unknown target language, source = target, and a missing new column name
+  - Basic translation; source column preserved; new column inserted directly right of the source; auto-detect source language
+  - Blank cells are skipped (left blank); non-text cells (numbers, dates, booleans) are copied unchanged
+  - Each on-error policy: set to blank, keep original, store error
+  - Caching: identical values are sent once; a failed translation is not cached and is retried
+  - New column name deduplicated if it already exists; undo removes the column
+  - Fail-fast: an unreachable server fails the job without adding a column, and the error message does not leak URL credentials; `displayUrl()` keeps only scheme, host and port
+  - Not covered: cancelling (thread interrupt) not being reported as "unreachable"
+
+- **`tests/server/.../TranslationConfigTests.java`**
+  - Returns a non-blank URL; URL and API key are read from JVM properties, which take precedence
 
 - **`tests/server/.../TranslateColumnCommandTests.java`**
   - `testCreateOperation()` — verifies command constructs the operation with correct parameters
@@ -98,7 +130,7 @@ We added a **Translate Column** feature to OpenRefine. The user picks an existin
   - `testOnErrorStoreError()` — verifies error storage option
 
 - **`tests/server/.../LibreTranslateClientTests.java`**
-  JUnit tests using `MockWebServer`:
+  TestNG tests using `MockWebServer`:
   - Successful translation
   - API key included in request when provided
   - API key redacted from error messages
@@ -120,7 +152,7 @@ We added a **Translate Column** feature to OpenRefine. The user picks an existin
   8. Undo removes the translated column
 
 - **`tests/cypress/cypress/plugins/fake-libretranslate.js`**
-  - Express server on port 5055 with fixed translations (`hello→hola`, `thank you→gracias`, `hello→你好`, …)
+  - Node `http` server on port 5055 with fixed translations (`hello→hola`, `thank you→gracias`, `hello→你好`, …)
   - Unknown inputs return `[<target>] <text>` as a predictable fallback
   - Cypress task to toggle the server "down" for the unreachable-service test
 
@@ -245,8 +277,10 @@ sequenceDiagram
 
     loop for each filtered row
         Process->>Process: translateCell(cell, client, cache)
-        alt cell is null/blank/non-string
-            Process->>Process: skip or copy unchanged
+        alt cell is null, empty, or whitespace-only text
+            Process->>Process: no API call; new cell left blank
+        else cell is not text (number, date, boolean)
+            Process->>Process: no API call; value copied unchanged into new column
         else cache hit
             Process->>Process: return cached translation
         else call API
@@ -398,12 +432,12 @@ sequenceDiagram
   - Cons: Introduces a new file type and convention that users have to learn
 
 - **`refine.ini` / `refine-dev.ini` (chosen)**
-  - Pros: OpenRefine already has this pattern, `refine-dev.ini` is already gitignored, variables are passed to the JVM as `-D` flags and read via `Configurations.get()` — the same mechanism used by all other OpenRefine settings
+  - Pros: OpenRefine already has this pattern, `refine-dev.ini` is already gitignored; the launch scripts export the two ini values as environment variables (not `-D` flags, so the API key does not appear in `ps`; see Decision 19), and `TranslationConfig` reads them, checking a JVM system property first (an optional override), then the environment variable, then the default
   - Cons: Users unfamiliar with OpenRefine's config system may not know to look there
 
 **Tradeoffs:** Dialog fields require no setup but are annoying to use repeatedly. Environment variables are powerful but less approachable. A separate config file is clean but introduces a new convention. `refine-dev.ini` has the least friction because the pattern is already established and the file is already gitignored.
 
-**Decision:** Kaley and Nicole chose `refine.ini` / `refine-dev.ini`. The agent found that this pattern already exists in the codebase (used for Google Data OAuth credentials) and that `Configurations.get()` already supports defaults. We decided this was the most consistent approach. The backend defaults to `http://localhost:5000`, so users running LibreTranslate locally on the standard port do not need to touch any config file.
+**Decision:** Kaley and Nicole chose `refine.ini` / `refine-dev.ini`. The agent found that this pattern already exists in the codebase (used for Google Data OAuth credentials). We decided this was the most consistent approach. The backend defaults to `http://localhost:5000`, so users running LibreTranslate locally on the standard port do not need to touch any config file.
 
 ---
 
@@ -433,7 +467,7 @@ sequenceDiagram
 
 ### Decision 7: On-error behavior
 
-**Problem:** Some cells may fail to translate (API down, empty cell, LibreTranslate returns an error). We needed to decide what to write in the new column for those cells.
+**Problem:** While the LibreTranslate server is up, an individual cell's request can still fail with an HTTP error (for example, LibreTranslate rejects the text) or an unusable response (no `translatedText` field, or JSON that cannot be parsed). We needed to decide what to write in the new column for those cells. The on-error policy covers only these failures: an unreachable server aborts the whole job instead (Decision 15), and empty cells are not errors; they simply stay empty in the new column.
 
 **Options considered:**
 
@@ -465,7 +499,7 @@ sequenceDiagram
 
 - **In the "Add column" group (chosen)**
   - Pros: The feature creates a new column, which is exactly what that group contains; consistent with existing items
-  - Cons: None
+  - Cons: Users looking for a dedicated "Translate" menu might not think to look under "Add column"
 
 - **A new separate group**
   - Pros: Makes translation visually distinct
@@ -487,7 +521,7 @@ sequenceDiagram
 
 - **i18n keys (chosen)**
   - Pros: Consistent with OpenRefine conventions, language names can be localized for non-English UI users
-  - Cons: Requires adding keys to every translation file
+  - Cons: Requires adding new keys to `translation-en.json` (other languages fall back to English until translated on Weblate; see Decision 20)
 
 **Decision:** Kaley and Nicole chose i18n keys to be consistent with how every other string in the UI is handled.
 
@@ -639,10 +673,10 @@ For the label we considered "Translate column…" and "Add column by translating
 **Decision:** Kaley and Nicole chose fail-fast and approved the backend change. We also kept **"set to blank"** as the default on-error choice, matching the other dialogs.
 - **Rejected requests:** shown in red inside the dialog, which stays open so the user can fix and retry.
 - **Unreachable service:** if any cell cannot reach LibreTranslate (connection refused, unknown host, timeout), the job stops with "Translation service unreachable at http://host:port. Is LibreTranslate running?", shown in the standard error pop-up, and no column is added. This uses a new `TranslationServiceUnreachableException`.
-- **HTTP errors on individual cells** while the server is up still follow the on-error policy.
+- **HTTP errors or unusable responses on individual cells** while the server is up still follow the on-error policy.
 
 While implementing this, the agent found two details, which we kept:
-- **Cancel:** cancelling interrupts the job's thread, so an interrupt is not treated as "unreachable". Otherwise clicking Cancel would show a false error.
+- **Cancel:** clicking Cancel interrupts the job's thread. Without special handling, that interrupt could look like an unreachable server and show a false error, so the client reports an interrupt as an ordinary translation error, and `run()` shows no error if the job was cancelled.
 - **URL in the message:** the message shows only the scheme, host and port, so a password or key embedded in the URL is never displayed.
 
 ---
@@ -719,7 +753,7 @@ LIBRETRANSLATE_URL=http://localhost:5055 CYPRESS_SPECS=cypress/e2e/project/grid/
 
 ### Decision 19: Fixing `refine.ini` settings not reaching the backend
 
-**Problem:** The agent found that on Linux and macOS, `LIBRETRANSLATE_URL` and `LIBRETRANSLATE_API_KEY` set in `refine.ini` / `refine-dev.ini` (Decision 5) never reached Java. The `./refine` script loads the ini as bash arrays (`export NAME=(value)`), and bash never passes arrays to child processes. The URL always fell back to `localhost:5000`, and an API key in the ini was ignored. Windows (`refine.bat`) was not affected, because it uses `set`.
+**Problem:** The agent found that on Linux and macOS, `LIBRETRANSLATE_URL` and `LIBRETRANSLATE_API_KEY` set in `refine.ini` / `refine-dev.ini` (Decision 5) never reached Java. The `./refine` script loads the ini as bash arrays (`export NAME=(value)`), and bash never passes arrays to child processes. The URL always fell back to `localhost:5000`, and an API key in the ini was ignored. Windows (`refine.bat`) is not affected: it loads the ini with `set`, which creates ordinary environment variables that Java inherits.
 
 **Options considered:**
 
@@ -740,7 +774,7 @@ LIBRETRANSLATE_URL=http://localhost:5055 CYPRESS_SPECS=cypress/e2e/project/grid/
 
 ### Decision 20: Which translation files get the new UI strings
 
-**Problem:** Decision 9 put every visible string in i18n keys, but its wording suggested adding the keys to every translation file (`main/webapp/modules/core/langs/` has 47).
+**Problem:** Decision 9 put every visible string in i18n keys, which raised the question of whether to add the keys to all 47 translation files in `main/webapp/modules/core/langs/`.
 
 **Options considered:**
 
