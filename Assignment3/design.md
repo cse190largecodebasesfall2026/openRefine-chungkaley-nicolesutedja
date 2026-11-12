@@ -6,11 +6,272 @@ We added a **Translate Column** feature to OpenRefine. The user picks an existin
 
 ## Relevant Code Structure
 
-*(To be filled in after implementation)*
+### New Java files
+
+- **`commands/column/TranslateColumnCommand.java`**
+  `TranslateColumnCommand extends EngineDependentCommand`
+  - Parses HTTP request parameters: `baseColumnName`, `sourceLang`, `targetLang`, `newColumnName`, `onError`
+  - Constructs and returns a `ColumnTranslationOperation`
+
+- **`operations/column/ColumnTranslationOperation.java`**
+  `ColumnTranslationOperation extends EngineDependentOperation`
+  - Stores all operation parameters
+  - `validate()` — checks both language codes are known and that source ≠ target
+  - `createProcess()` — returns a `ColumnTranslationProcess`
+  - Inner class `ColumnTranslationProcess extends LongRunningProcess`:
+    - Collects rows passing the current engine filter
+    - Translates each cell one at a time, caching successful results
+    - Distinguishes fatal service failures from per-cell errors
+    - Updates `_progress` after each cell
+    - On success, creates a `HistoryEntry` with a `ColumnAdditionChange`
+
+- **`translation/LibreTranslateClient.java`**
+  `LibreTranslateClient`
+  - POSTs `{"q", "source", "target", "format", "api_key"?}` JSON to `<baseUrl>/translate`
+  - Throws `TranslationServiceUnreachableException` on `IOException` (server down)
+  - Throws `TranslationException` on HTTP error status, missing `translatedText` field, or interrupted thread
+  - Redacts the API key from all error messages
+
+- **`translation/TranslationConfig.java`**
+  `TranslationConfig`
+  - Reads the server URL and API key in priority order:
+    1. JVM system property (`refine.translate.url` / `refine.translate.apikey`)
+    2. Environment variable (`LIBRETRANSLATE_URL` / `LIBRETRANSLATE_API_KEY`)
+    3. Built-in default `http://localhost:5000` (URL only; no default key)
+
+- **`translation/TranslationLanguages.java`**
+  `TranslationLanguages`
+  - Defines `SOURCE_LANGUAGES = {"auto", "en", "es", "zh"}` and `TARGET_LANGUAGES = {"en", "es", "zh"}`
+  - Provides `isValidSource()` / `isValidTarget()` helpers
+  - To add a language: add its code here and a matching i18n key in `translation-en.json`
+
+- **`translation/TranslationException.java`**
+  `TranslationException`
+  - Base checked exception for per-cell translation failures
+  - The on-error policy (blank / store error / keep original) is applied to these
+
+- **`translation/TranslationServiceUnreachableException.java`**
+  `TranslationServiceUnreachableException extends TranslationException`
+  - Signals the LibreTranslate server itself is unreachable
+  - Caught in `ColumnTranslationProcess.run()` to abort the whole operation
+
+### Modified Java files
+
+- **`resources/com/google/refine/operations/OperationDescription.properties`**
+  - `column_translation_brief` — "Create column {0} by translating column {1} from {2} to {3}"
+  - `column_translation_desc` — "Create new column {0}, filling {1} rows by translating column {2} from {3} to {4}"
+
+- **`webapp/modules/core/MOD-INF/controller.js`**
+  - Registered the `translate-column` command: `RS.registerCommand(module, "translate-column", new Packages.com.google.refine.commands.column.TranslateColumnCommand())`
+
+### New frontend files
+
+- **`scripts/views/data-table/menu-edit-column.js`**
+  - Added `doTranslateColumn()` (lines ~175–285):
+    - Loads the dialog HTML and populates language dropdowns
+    - Auto-fills the column name as `<column>_<code>` when target language is selected
+    - Validates inline: same-language warning, name-collision warning, OK disabled until valid
+    - On submit, POSTs to `/command/core/translate-column` via `Refine.postCoreProcess`
+  - Added menu entry `core/translate-column` ("Translate column…") immediately after "Add column by fetching URLs…" (line 721)
+
+- **`scripts/views/data-table/translate-column-dialog.html`**
+  - Source-language select (defaults to "Detect automatically")
+  - Target-language select (no default; user must choose)
+  - Two inline warning `<div>`s (same-language, name-collision)
+  - Column-name input
+  - Three on-error radio buttons (set-to-blank checked by default)
+  - Request-error `<div>` shown in red if the backend rejects the request
+
+- **`styles/dialogs/translate-column-dialog.css`**
+  - `.translate-column-warning` — red inline warning text
+  - `.translate-column-error` — red bold request-error block
+
+- **`langs/translation-en.json`**
+  - 12 new `core-views/translate-*` keys: menu label, dialog title, field labels, "Detect automatically", "Choose a language…", three language names, two inline warnings, and the request-error template
+  - Existing keys reused where wording is identical: `new-col-name`, `on-error`, `set-blank`, `store-err`, `copy-val`, OK, Cancel
+
+### New test files
+
+- **`tests/server/.../TranslateColumnCommandTests.java`**
+  - `testCreateOperation()` — verifies command constructs the operation with correct parameters
+  - `testOnErrorKeepOriginal()` — verifies on-error parameter parsing
+  - `testOnErrorStoreError()` — verifies error storage option
+
+- **`tests/server/.../LibreTranslateClientTests.java`**
+  JUnit tests using `MockWebServer`:
+  - Successful translation
+  - API key included in request when provided
+  - API key redacted from error messages
+  - Non-JSON error body handled gracefully
+  - Missing `translatedText` field throws `TranslationException`
+  - Trailing slash in URL is normalized
+  - Unreachable server throws `TranslationServiceUnreachableException`
+  - HTTP error is not reported as unreachable
+
+- **`tests/cypress/.../translate_column.cy.js`**
+  8 Cypress E2E scenarios:
+  1. Dialog opens with correct title/labels; OK starts disabled
+  2. Language selection and naming (default name, same-language warning, edited names preserved)
+  3. New column appears adjacent with rows aligned; empty cells stay empty
+  4. Name-collision warning shown; OK disabled until name is unique
+  5. Unreachable service shows error alert; no column added
+  6. Rejected request shows error inside dialog; dialog stays open
+  7. Cancel sends no request and changes nothing
+  8. Undo removes the translated column
+
+- **`tests/cypress/cypress/plugins/fake-libretranslate.js`**
+  - Express server on port 5055 with fixed translations (`hello→hola`, `thank you→gracias`, `hello→你好`, …)
+  - Unknown inputs return `[<target>] <text>` as a predictable fallback
+  - Cypress task to toggle the server "down" for the unreachable-service test
 
 ## Diagrams
 
-*(To be filled in after implementation)*
+### Class Diagram
+
+```mermaid
+classDiagram
+    class TranslateColumnCommand {
+        +createOperation(project, request, engineConfig) AbstractOperation
+    }
+
+    class ColumnTranslationOperation {
+        -_baseColumnName : String
+        -_sourceLang : String
+        -_targetLang : String
+        -_newColumnName : String
+        -_onError : OnError
+        +validate()
+        +createProcess(project, options) Process
+        +getColumnsDiff() Optional~ColumnsDiff~
+        +renameColumns(newColumnNames) ColumnTranslationOperation
+    }
+
+    class ColumnTranslationProcess {
+        -_project : Project
+        -_engine : Engine
+        -_historyEntryID : long
+        +run()
+        -translateCell(cell, client, cache) Serializable
+    }
+
+    class LibreTranslateClient {
+        -baseUrl : String
+        -apiKey : String
+        -httpClient : HttpClient
+        +translate(text, sourceLang, targetLang) String
+        -extractErrorMessage(body) String
+    }
+
+    class TranslationConfig {
+        +URL_PROPERTY : String$
+        +KEY_PROPERTY : String$
+        +URL_ENV : String$
+        +KEY_ENV : String$
+        +DEFAULT_URL : String$
+        +getUrl() String$
+        +getApiKey() String$
+    }
+
+    class TranslationLanguages {
+        +AUTO : String$
+        +SOURCE_LANGUAGES : Set~String~$
+        +TARGET_LANGUAGES : Set~String~$
+        +isValidSource(lang) boolean$
+        +isValidTarget(lang) boolean$
+    }
+
+    class TranslationException {
+    }
+
+    class TranslationServiceUnreachableException {
+    }
+
+    class EngineDependentCommand {
+    }
+
+    class EngineDependentOperation {
+    }
+
+    class LongRunningProcess {
+    }
+
+    TranslateColumnCommand --|> EngineDependentCommand
+    TranslateColumnCommand ..> ColumnTranslationOperation : creates
+
+    ColumnTranslationOperation --|> EngineDependentOperation
+    ColumnTranslationOperation ..> ColumnTranslationProcess : creates
+    ColumnTranslationOperation ..> TranslationLanguages : validates with
+
+    ColumnTranslationProcess --|> LongRunningProcess
+    ColumnTranslationProcess ..> LibreTranslateClient : calls translate()
+    ColumnTranslationProcess ..> TranslationConfig : reads URL and key
+
+    LibreTranslateClient ..> TranslationConfig : reads at construction
+    LibreTranslateClient ..> TranslationException : throws
+    LibreTranslateClient ..> TranslationServiceUnreachableException : throws
+
+    TranslationServiceUnreachableException --|> TranslationException
+```
+
+### Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Dialog as doTranslateColumn()<br/>(menu-edit-column.js)
+    participant Command as TranslateColumnCommand
+    participant Operation as ColumnTranslationOperation
+    participant Process as ColumnTranslationProcess
+    participant Client as LibreTranslateClient
+    participant LT as LibreTranslate Server
+
+    User->>Dialog: clicks "Translate column…" from column menu
+    Dialog->>Dialog: load translate-column-dialog.html, populate language dropdowns
+    User->>Dialog: selects target language (e.g. "es")
+    Dialog->>Dialog: auto-fill column name to "<column>_es", enable OK
+    User->>Dialog: clicks OK
+    Dialog->>Dialog: validate() — check languages differ, name unique
+    Dialog->>Command: POST /command/core/translate-column<br/>{baseColumnName, sourceLang, targetLang, newColumnName, onError}
+    Command->>Operation: new ColumnTranslationOperation(engineConfig, params)
+    Command->>Operation: createProcess(project, options)
+    Operation->>Process: new ColumnTranslationProcess(project, engine, description)
+    Process-->>Command: process handle (progress panel shown)
+    Command-->>Dialog: {code: "pending"} → dialog closes, progress panel appears
+
+    Note over Process: Runs in background thread
+
+    Process->>Process: resolve actual column name (deduplicate if needed)
+    Process->>Process: collect filtered rows via Engine + FilteredRows
+
+    loop for each filtered row
+        Process->>Process: translateCell(cell, client, cache)
+        alt cell is null/blank/non-string
+            Process->>Process: skip or copy unchanged
+        else cache hit
+            Process->>Process: return cached translation
+        else call API
+            Process->>Client: translate(text, sourceLang, targetLang)
+            Client->>LT: POST /translate {q, source, target, format, api_key?}
+            alt success
+                LT-->>Client: {translatedText: "..."}
+                Client-->>Process: translated string (stored in cache)
+            else HTTP error
+                LT-->>Client: HTTP 4xx/5xx
+                Client-->>Process: throws TranslationException
+                Process->>Process: apply onError policy (blank / store error / keep original)
+            else server unreachable
+                LT--xClient: IOException
+                Client-->>Process: throws TranslationServiceUnreachableException
+                Process->>Process: onFailedProcess() — abort, no column added
+            end
+        end
+        Process->>Process: update _progress = (i+1)*100/count
+    end
+
+    Process->>Process: new HistoryEntry(ColumnAdditionChange)
+    Process->>Process: onDoneProcess()
+    Process-->>User: new column appears in grid to the right of source column
+```
 
 ## Key Design Decisions
 
