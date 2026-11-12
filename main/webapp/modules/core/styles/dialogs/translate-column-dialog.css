@@ -1,0 +1,13 @@
+/* Inline warnings shown under a field of the "Translate column" dialog (same language, name already taken). */
+.translate-column-dialog .translate-column-warning {
+  color: var(--error-red);
+  margin-top: 2px;
+}
+
+/* Error returned by the backend when the request is rejected; the dialog stays open. */
+.translate-column-dialog .translate-column-error {
+  color: var(--error-red);
+  font-weight: bold;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
