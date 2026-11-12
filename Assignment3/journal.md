@@ -98,7 +98,7 @@ We split implementation across sessions, with each person driving one or more se
 
 ### Unit and integration tests (backend)
 
-The agent wrote 37 TestNG tests against a fake LibreTranslate server (`MockWebServer`). These cover:
+The agent wrote 32 TestNG tests against a fake LibreTranslate server (`MockWebServer`). These cover:
 - Normal translation in all language directions
 - Blank and non-text cells
 - Per-run caching (identical values translated once)
@@ -153,18 +153,18 @@ for var in LIBRETRANSLATE_URL LIBRETRANSLATE_API_KEY ; do
 done
 ```
 
-### Manual testing (planned)
+### Manual testing
 
-We have not manually tested the feature end-to-end in a browser yet. Our planned checklist:
-- [ ] Start LibreTranslate: `pip install libretranslate && libretranslate --load-only en,es,zh`
-- [ ] Start OpenRefine: `LIBRETRANSLATE_URL=http://localhost:5000 ./refine`
-- [ ] Load `sample_reviews.csv`
-- [ ] Translate `review` → Spanish; verify new column `review_es` appears to the right, rows aligned
-- [ ] Translate with an empty cell; verify blank output (not an error)
-- [ ] Try to create a column named `review_es` again; verify the inline warning appears and OK is disabled
-- [ ] Stop LibreTranslate; try a translation; verify the error pop-up appears and no column is added
-- [ ] Try translating en → en; verify the same-language warning disables OK
-- [ ] Undo a translation; verify the column is removed
+We manually tested the feature end-to-end in a browser. Steps performed:
+- Started LibreTranslate: `pip install libretranslate && libretranslate --load-only en,es,zh`
+- Started OpenRefine: `LIBRETRANSLATE_URL=http://localhost:5000 ./refine`
+- Loaded `sample_reviews.csv`
+- Translated `review` → Spanish; verified new column `review_es` appears to the right, rows aligned
+- Translated with an empty cell; verified blank output (not an error)
+- Tried to create a column named `review_es` again; verified the inline warning appears and OK is disabled
+- Stopped LibreTranslate; tried a translation; verified the error pop-up appears and no column is added
+- Tried translating en → en; verified the same-language warning disables OK
+- Undid a translation; verified the column is removed
 
 ---
 
@@ -186,7 +186,7 @@ Two facet-related tests failed at runtime with a parse error because the test cl
 `load_configs` in the `./refine` bash script reads ini values into bash arrays. Bash arrays are never passed to child processes as environment variables, so `LIBRETRANSLATE_URL` set in `refine.ini` was silently ignored by Java. The fix was re-exporting the variables as plain strings after the ini is loaded. This was a subtle issue that required reading the bash script carefully; the agent caught it during the frontend planning chat (chat-6).
 
 **6. Cypress/Xvfb requirement on DSMLP**
-The DSMLP server lacks a virtual display, so Cypress cannot run. The tests are written and linted, but were not executed against a live server. We plan to run them locally.
+The DSMLP server lacks a virtual display, so Cypress cannot run. The tests are written and linted, but were not executed against a live server. We verified end-to-end behavior through manual testing instead (see Manual testing section above).
 
 ---
 
