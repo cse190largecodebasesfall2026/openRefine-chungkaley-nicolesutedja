@@ -236,7 +236,7 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
     elmts.targetLangSelect.on('change', function() {
       var target = elmts.targetLangSelect.val();
       if (!nameEditedByUser && target !== '') {
-        elmts.columnNameInput.val(column.name + '_' + target);
+        elmts.columnNameInput.val(column.name + '_' + $.i18n('core-views/translate-lang-' + target));
       }
       validate();
     });
