@@ -437,6 +437,44 @@ public class ColumnTranslationOperationTests extends RefineTest {
         assertTrue(!message.contains("secret-key"), "Key must not appear: " + message);
     }
 
+    // ── Rejected API key (401 / 403) ──────────────────────────────────────────
+
+    private void assertAuthErrorFailsWithoutAddingColumn(int code) throws Exception {
+        System.setProperty(TranslationConfig.KEY_PROPERTY, "secret-key");
+        server.enqueue(errorResponse(code));
+        server.enqueue(errorResponse(code));
+        Project project = createProject(
+                new String[] { "review" },
+                new Serializable[][] { { "Hello" }, { "World" } });
+
+        runOperation(new ColumnTranslationOperation(
+                ENGINE_CONFIG, "review", "en", "es", "review_es", OnError.SetToBlank), project);
+
+        List<String> colNames = project.columnModel.columns.stream()
+                .map(Column::getName).toList();
+        assertEquals(colNames, List.of("review"), "No column must be added when the API key is rejected");
+        assertEquals(project.history.getLastPastEntries(10).size(), 0, "No history entry must be created");
+        assertEquals(server.getRequestCount(), 1, "The run must stop after the first rejected request");
+
+        List<?> exceptions = project.processManager.getJsonExceptions();
+        assertEquals(exceptions.size(), 1);
+        String message = ParsingUtilities.mapper.writeValueAsString(exceptions.get(0));
+        assertTrue(message.contains("API key is missing or invalid"), message);
+        assertTrue(message.contains("HTTP " + code), message);
+        assertTrue(!message.contains("unreachable"), "Must not claim the server is down: " + message);
+        assertTrue(!message.contains("secret-key"), "Key must not appear: " + message);
+    }
+
+    @Test
+    public void testUnauthorizedFailsWithoutAddingColumn() throws Exception {
+        assertAuthErrorFailsWithoutAddingColumn(401);
+    }
+
+    @Test
+    public void testForbiddenFailsWithoutAddingColumn() throws Exception {
+        assertAuthErrorFailsWithoutAddingColumn(403);
+    }
+
     @Test
     public void testDisplayUrl() {
         assertEquals(ColumnTranslationOperation.displayUrl("http://localhost:5000"), "http://localhost:5000");

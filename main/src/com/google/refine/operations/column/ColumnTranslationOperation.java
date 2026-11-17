@@ -34,6 +34,7 @@ import com.google.refine.operations.OperationDescription;
 import com.google.refine.process.LongRunningProcess;
 import com.google.refine.process.Process;
 import com.google.refine.translation.LibreTranslateClient;
+import com.google.refine.translation.TranslationAuthException;
 import com.google.refine.translation.TranslationConfig;
 import com.google.refine.translation.TranslationException;
 import com.google.refine.translation.TranslationLanguages;
@@ -231,6 +232,16 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                                 e));
                     }
                     return;
+                } catch (TranslationAuthException e) {
+                    // Missing or invalid API key: abort the whole run and add no column.
+                    if (!_canceled) {
+                        _project.processManager.onFailedProcess(this, new Exception(
+                                "Translation service at " + displayUrl(url)
+                                        + " rejected the request (" + e.getMessage() + ")."
+                                        + " The API key is missing or invalid.",
+                                e));
+                    }
+                    return;
                 }
                 if (newValue != null) {
                     results.add(new CellAtRow(item.rowIndex, new Cell(newValue, null)));
@@ -261,7 +272,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
          */
         private Serializable translateCell(
                 Cell cell, LibreTranslateClient client, Map<String, String> cache)
-                throws TranslationServiceUnreachableException {
+                throws TranslationServiceUnreachableException, TranslationAuthException {
             // Null / blank cell → skip, leave blank.
             if (cell == null || cell.value == null) {
                 return null;
@@ -287,7 +298,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                 String translated = client.translate(text, _sourceLang, _targetLang);
                 cache.put(cacheKey, translated);
                 return translated;
-            } catch (TranslationServiceUnreachableException e) {
+            } catch (TranslationServiceUnreachableException | TranslationAuthException e) {
                 throw e; // handled by run(): aborts the whole operation
             } catch (TranslationException e) {
                 // Apply on-error policy.

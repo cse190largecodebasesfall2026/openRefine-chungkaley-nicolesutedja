@@ -88,6 +88,10 @@ public class LibreTranslateClient {
         int status = response.statusCode();
         if (status != 200) {
             String errorMsg = extractErrorMessage(response.body());
+            if (status == 401 || status == 403) {
+                // Bad or missing API key: every cell would fail the same way, so abort the whole run.
+                throw new TranslationAuthException("HTTP " + status + (errorMsg != null ? ": " + errorMsg : ""));
+            }
             throw new TranslationException("HTTP " + status + (errorMsg != null ? ": " + errorMsg : ""));
         }
 

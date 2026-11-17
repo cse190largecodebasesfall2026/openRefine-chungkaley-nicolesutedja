@@ -140,4 +140,43 @@ public class LibreTranslateClientTests {
                     "An HTTP error means the server is up; it must follow the on-error policy");
         }
     }
+
+    private void assertAuthException(int code) throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            server.enqueue(new MockResponse.Builder()
+                    .code(code)
+                    .body("{\"error\":\"Invalid API key\"}")
+                    .build());
+
+            TranslationAuthException e = expectThrows(TranslationAuthException.class,
+                    () -> client(server, "secret-key").translate("hello", "en", "es"));
+            assertTrue(e.getMessage().contains(String.valueOf(code)), e.getMessage());
+            assertFalse(e.getMessage().contains("secret-key"),
+                    "Key must not appear in error: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void testUnauthorizedThrowsAuthException() throws Exception {
+        assertAuthException(401);
+    }
+
+    @Test
+    public void testForbiddenThrowsAuthException() throws Exception {
+        assertAuthException(403);
+    }
+
+    @Test
+    public void testBadRequestIsNotAuthException() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            server.enqueue(new MockResponse.Builder().code(400).build());
+
+            TranslationException e = expectThrows(TranslationException.class,
+                    () -> client(server, null).translate("hello", "en", "es"));
+            assertFalse(e instanceof TranslationAuthException,
+                    "Only 401/403 abort the run; other HTTP errors follow the on-error policy");
+        }
+    }
 }
