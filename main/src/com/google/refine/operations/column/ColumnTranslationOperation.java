@@ -95,7 +95,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                 "Unknown target language: " + _targetLang);
         Validate.isTrue(!_sourceLang.equals(_targetLang),
                 "Source and target language must be different");
-        Validate.notNull(_newColumnName, "Missing new column name");
+        Validate.notEmpty(_newColumnName, "Missing new column name");
         Validate.notNull(_onError, "Missing 'on error' behavior");
     }
 
