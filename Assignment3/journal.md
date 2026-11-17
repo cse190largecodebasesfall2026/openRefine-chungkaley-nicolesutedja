@@ -98,12 +98,11 @@ We split implementation across sessions, with each person driving one or more se
 
 ### Unit and integration tests (backend)
 
-The agent wrote 32 TestNG tests against a fake LibreTranslate server (`MockWebServer`). These cover:
+The agent wrote 35 TestNG tests against a fake LibreTranslate server (`MockWebServer`). These cover:
 - Normal translation in all language directions
 - Blank and non-text cells
 - Per-run caching (identical values translated once)
 - All three on-error modes
-- Facets on and off
 - Name collisions (auto-numbered `review_es2`)
 - Undo
 - Unreachable server (D6): job fails with no column added
@@ -180,7 +179,7 @@ After the backend session in chat-4, we forgot to commit. So, Nicole added the b
 TestNG's `assertThrows` doesn't return the exception object, unlike JUnit's `assertThrows`. When we needed to inspect the exception message, the code didn't compile. The fix was switching to `expectThrows`, which does return it. This is worth noting: if we encounter a similar issue in a TestNG project in the future, `expectThrows` is the method for checking exception properties.
 
 **4. GREL parser not registered in tests**
-Two facet-related tests failed at runtime with a parse error because the test class didn't register the GREL language parser before running tests. We added `@BeforeMethod` / `@AfterMethod` hooks. Reference for the future: any test class that exercises engine/facet logic in OpenRefine needs to register the GREL parser manually.
+In chat-4, two facet-related tests failed at runtime with a parse error, because the test class didn’t register the GREL language parser. We fixed it with @BeforeMethod / @AfterMethod hooks. However, these facet tests were part of the chat-4 work that was never committed (see obstacle 2), and they were not re-added in chat-5. The final test suite therefore has no facet tests. Facet behavior was checked manually only. Re-adding these tests would be the next step. Reference for the future: any test class that exercises engine/facet logic in OpenRefine needs to register the GREL parser manually.
 
 **5. `refine.ini` variables not reaching the Java process**
 `load_configs` in the `./refine` bash script reads ini values into bash arrays. Bash arrays are never passed to child processes as environment variables, so `LIBRETRANSLATE_URL` set in `refine.ini` was silently ignored by Java. The fix was re-exporting the variables as plain strings after the ini is loaded. This was a subtle issue that required reading the bash script carefully; the agent caught it during the frontend planning chat (chat-6).
