@@ -277,10 +277,8 @@ sequenceDiagram
 
     loop for each filtered row
         Process->>Process: translateCell(cell, client, cache)
-        alt cell is null, empty, or whitespace-only text
-            Process->>Process: no API call; new cell left blank
-        else cell is not text (number, date, boolean)
-            Process->>Process: no API call; value copied unchanged into new column
+        alt cell is null/blank/non-string
+            Process->>Process: skip or copy unchanged
         else cache hit
             Process->>Process: return cached translation
         else call API

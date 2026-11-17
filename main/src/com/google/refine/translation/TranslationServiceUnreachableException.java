@@ -7,7 +7,7 @@ package com.google.refine.translation;
  * <p>
  * Unlike other {@link TranslationException}s, which affect a single cell and are handled by the on-error policy, this
  * aborts the whole translation run: if the server is down, every cell would fail and the user would otherwise get a
- * silently empty column (Decision D6).
+ * silently empty column.
  */
 public class TranslationServiceUnreachableException extends TranslationException {
 

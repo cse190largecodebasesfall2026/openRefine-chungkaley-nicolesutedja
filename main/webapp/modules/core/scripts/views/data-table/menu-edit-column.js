@@ -190,7 +190,7 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
     elmts.okButton.html($.i18n('core-buttons/ok'));
     elmts.cancelButton.text($.i18n('core-buttons/cancel'));
 
-    // Source: auto-detect by default (Decision 6). Target: no default, user must choose (D2).
+    // Source: auto-detect by default. Target: no default, user must choose.
     $('<option>').val('auto').text($.i18n('core-views/translate-detect-lang')).appendTo(elmts.sourceLangSelect);
     $('<option>').val('').text($.i18n('core-views/translate-choose-lang')).appendTo(elmts.targetLangSelect);
     languageCodes.forEach(function(code) {
@@ -202,7 +202,7 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
     var level = DialogSystem.showDialog(frame);
     var dismiss = function() { DialogSystem.dismissUntil(level - 1); };
 
-    // The default name follows the target language until the user edits the name (D3).
+    // The default name follows the target language until the user edits the name.
     var nameEditedByUser = false;
     var submitting = false;
 
@@ -210,7 +210,7 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
       return jQueryTrim(elmts.columnNameInput[0].value);
     };
 
-    // Shows the inline warnings and enables OK only when the form is valid (D2, D4).
+    // Shows the inline warnings and enables OK only when the form is valid.
     var validate = function() {
       var source = elmts.sourceLangSelect.val();
       var target = elmts.targetLangSelect.val();
@@ -236,7 +236,7 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
     elmts.targetLangSelect.on('change', function() {
       var target = elmts.targetLangSelect.val();
       if (!nameEditedByUser && target !== '') {
-        elmts.columnNameInput.val(column.name + '_' + target);
+        elmts.columnNameInput.val(column.name + '_' + $.i18n('core-views/translate-lang-' + target));
       }
       validate();
     });
@@ -268,9 +268,9 @@ DataTableColumnHeaderUI.extendMenu(function(column, columnHeaderUI, menu) {
         null,
         { modelsChanged: true, rowIdsPreserved: true, recordIdsPreserved: true },
         {
-          // Progress and later failures are shown by the standard process panel (D5, D6).
+          // Progress and later failures are shown by the standard process panel.
           onDone: dismiss,
-          // A rejected request is shown inside the dialog, which stays open (D6).
+          // A rejected request is shown inside the dialog, which stays open.
           onError: function(o) {
             submitting = false;
             elmts.requestError.text($.i18n('core-views/translate-error-request', o.message)).show();
