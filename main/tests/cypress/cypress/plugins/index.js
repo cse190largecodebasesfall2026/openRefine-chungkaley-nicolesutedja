@@ -15,8 +15,23 @@
  * @type {Cypress.PluginConfig}
  */
 
-module.exports = (on, config) => {
+const { createFakeLibreTranslate, DEFAULT_PORT } = require('./fake-libretranslate');
+
+module.exports = async (on, config) => {
   // `on` is used to hook into various events Cypress emits
   // `config` is the resolved Cypress config
+
+  // Fake translation server for the "Translate column" tests (see fake-libretranslate.js).
+  const port = Number(config.env.FAKE_LIBRETRANSLATE_PORT) || DEFAULT_PORT;
+  const fakeLibreTranslate = createFakeLibreTranslate(port);
+  try {
+    await fakeLibreTranslate.start();
+  } catch (e) {
+    // Do not break unrelated specs; the translate-column spec reports this clearly.
+    console.warn(`Fake LibreTranslate could not start on port ${port}: ${e.message}`);
+  }
+  on('task', fakeLibreTranslate.tasks);
+  config.expose = { ...config.expose, FAKE_LIBRETRANSLATE_PORT: port };
+
   return config;
 };

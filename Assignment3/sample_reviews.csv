@@ -1,0 +1,22 @@
+review_id,reviewer,restaurant,rating,language,review_text
+1,Maria G.,Golden Dragon Bistro,5,en,Absolutely loved the dumplings! The service was quick and the staff were friendly.
+2,Tom R.,Sunset Grill,2,en,The steak was overcooked and we waited 45 minutes for our table. Not coming back.
+3,Priya S.,Café Luna,4,en,"Great coffee, cozy atmosphere, and the pastries are fresh every morning."
+4,Jake L.,Taco Libre,3,en,"Decent food, but it's pretty loud, and the portions are small for the price."
+5,Emily W.,Blue Harbor Seafood,5,en,"The clam chowder is the best I've ever had, ""hands down""! Highly recommended."
+6,Omar K.,Pizza Verde,1,en,"Found a hair in my salad. The manager apologized, but I lost my appetite."
+7,Sara B.,Noodle House,4,en,"Big bowls, rich broth, and fair prices. Perfect for a rainy day."
+8,Carlos M.,La Casa del Taco,5,es,¡La comida estuvo deliciosa! Los tacos al pastor son los mejores de la ciudad.
+9,Lucía F.,Cantina El Sol,2,es,El servicio fue muy lento y la sopa llegó fría. Esperaba más por este precio.
+10,Diego R.,Paella y Más,4,es,"La paella de mariscos estaba increíble, aunque el local es un poco ruidoso."
+11,Valentina P.,Café Mariposa,5,es,"Un lugar acogedor con un café excelente. Volveré sin duda, ¡gracias!"
+12,Andrés T.,Parrilla Don José,3,es,"La carne estaba bien cocida, pero las porciones son pequeñas y el postre era normal."
+13,Camila H.,Sabor Latino,1,es,Pedimos para llevar y el pedido llegó incompleto. Muy decepcionante.
+14,Javier N.,Marisquería La Ola,4,es,El ceviche estaba fresco y el personal muy amable. Buen ambiente familiar.
+15,王芳,北京烤鸭店,5,zh,烤鸭皮脆肉嫩，服务也很周到，下次还会再来！
+16,李伟,川味小馆,2,zh,菜太辣了，而且上菜特别慢，等了快一个小时。
+17,张敏,点心世界,4,zh,虾饺和叉烧包都很好吃，就是周末人太多，需要排队。
+18,陈杰,老上海餐厅,3,zh,环境不错，但是价格偏贵，红烧肉味道一般。
+19,刘洋,面香园,5,zh,牛肉面的汤底非常浓郁，面条也很劲道，强烈推荐！
+20,赵静,茶语轩,1,zh,服务员态度很差，奶茶还洒了一桌，不会再来了。
+21,黄磊,小笼包专门店,4,zh,小笼包汁多味美，价格实惠，就是座位有点少。

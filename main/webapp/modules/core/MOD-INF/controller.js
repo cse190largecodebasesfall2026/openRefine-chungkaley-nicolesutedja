@@ -109,6 +109,7 @@ function registerCommands() {
   
   RS.registerCommand(module, "add-column", new Packages.com.google.refine.commands.column.AddColumnCommand());
   RS.registerCommand(module, "add-column-by-fetching-urls", new Packages.com.google.refine.commands.column.AddColumnByFetchingURLsCommand());
+  RS.registerCommand(module, "translate-column", new Packages.com.google.refine.commands.column.TranslateColumnCommand());
   RS.registerCommand(module, "remove-column", new Packages.com.google.refine.commands.column.RemoveColumnCommand());
   RS.registerCommand(module, "rename-column", new Packages.com.google.refine.commands.column.RenameColumnCommand());
   RS.registerCommand(module, "move-column", new Packages.com.google.refine.commands.column.MoveColumnCommand());
@@ -179,6 +180,7 @@ function registerOperations() {
   OR.registerOperation(module, "column-move-last", Packages.com.google.refine.operations.column.ColumnMoveLastOperation);
   OR.registerOperation(module, "column-split", Packages.com.google.refine.operations.column.ColumnSplitOperation);
   OR.registerOperation(module, "column-addition-by-fetching-urls", Packages.com.google.refine.operations.column.ColumnAdditionByFetchingURLsOperation);
+  OR.registerOperation(module, "column-translation", Packages.com.google.refine.operations.column.ColumnTranslationOperation);
   OR.registerOperation(module, "column-reorder", Packages.com.google.refine.operations.column.ColumnReorderOperation);
 
   OR.registerOperation(module, "row-removal", Packages.com.google.refine.operations.row.RowRemovalOperation);
@@ -595,6 +597,7 @@ function init() {
 
       "styles/dialogs/clustering-functions-dialog.css",
       "styles/dialogs/expression-preview-dialog.css",
+      "styles/dialogs/translate-column-dialog.css",
       "styles/dialogs/clustering-dialog.css",
       "styles/dialogs/scatterplot-dialog.css",
       "styles/dialogs/column-reordering-dialog.css",

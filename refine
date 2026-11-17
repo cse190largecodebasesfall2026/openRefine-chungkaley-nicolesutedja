@@ -572,6 +572,18 @@ fi
 echo "Using ${REFINE_INI_PATH} for configuration"
 load_configs $REFINE_INI_PATH
 
+# load_configs defines bash arrays, which are never passed on to child processes.
+# Re-export the translation settings as plain variables so the JVM can read them.
+# (Environment variables rather than -D options, so the API key does not show up in `ps`.)
+# (Assigning to an array name only sets element 0, so copy, unset, then export.)
+for var in LIBRETRANSLATE_URL LIBRETRANSLATE_API_KEY ; do
+    if [ -n "${!var}" ] ; then
+        value="${!var}"
+        unset "$var"
+        export "$var=$value"
+    fi
+done
+
 # ----- Parse the command line args -------------------------------------------
 for ((i=0; i<${#args[@]}; i+=1)); do
   arg="${args[i]}"
