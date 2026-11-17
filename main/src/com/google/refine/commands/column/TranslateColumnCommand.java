@@ -15,7 +15,7 @@ import com.google.refine.operations.column.ColumnTranslationOperation;
  *
  * <p>
  * The engine config sent by the browser decides which rows are translated: the current facet selection, or an empty
- * config for all rows (Decision B).
+ * config for all rows.
  */
 public class TranslateColumnCommand extends EngineDependentCommand {
 

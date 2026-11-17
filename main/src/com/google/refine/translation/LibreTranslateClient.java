@@ -77,7 +77,7 @@ public class LibreTranslateClient {
         try {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (IOException e) {
-            // Connection-level failure: the server itself is unreachable (Decision D6).
+            // Connection-level failure: the server itself is unreachable.
             throw new TranslationServiceUnreachableException("Translation service unreachable", e);
         } catch (InterruptedException e) {
             // The thread is interrupted when the user cancels the process; not a service failure.

@@ -56,7 +56,7 @@ import com.google.refine.translation.TranslationServiceUnreachableException;
  * <li>If the requested column name is already taken, a numeric suffix is appended (e.g. {@code review_es2}) without
  * warning the user at this layer — the frontend dialog warns before submit.</li>
  * <li>Translation failures per cell follow the {@link OnError} policy.</li>
- * <li>If the server is unreachable, the whole run fails with a clear message and no column is added (Decision D6).</li>
+ * <li>If the server is unreachable, the whole run fails with a clear message and no column is added.</li>
  * </ul>
  */
 public class ColumnTranslationOperation extends EngineDependentOperation {
@@ -182,7 +182,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                 return;
             }
 
-            // Decide the actual column name, deduplicating if needed (Decision A).
+            // Decide the actual column name, deduplicating if needed.
             String actualNewName = _project.columnModel.getUnduplicatedColumnName(_newColumnName);
             int insertIndex = _project.columnModel.columns.indexOf(column) + 1;
 
@@ -190,7 +190,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
             String apiKey = TranslationConfig.getApiKey();
             LibreTranslateClient client = new LibreTranslateClient(url, apiKey);
 
-            // Collect the rows that pass the current engine filter (Decision B).
+            // Collect the rows that pass the current engine filter.
             List<RowToTranslate> toTranslate = new ArrayList<>();
             final int cellIndex = column.getCellIndex();
             FilteredRows filteredRows = _engine.getAllFilteredRows();
@@ -213,7 +213,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
 
             int count = toTranslate.size();
             List<CellAtRow> results = new ArrayList<>(count);
-            // Cache: only successful translations are reused (Decision E).
+            // Cache: only successful translations are reused.
             Map<String, String> cache = new HashMap<>();
 
             for (int i = 0; i < count; i++) {
@@ -222,7 +222,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                 try {
                     newValue = translateCell(item.cell, client, cache);
                 } catch (TranslationServiceUnreachableException e) {
-                    // Server down: abort the whole run and add no column (Decision D6).
+                    // Server down: abort the whole run and add no column.
                     // If the user canceled, the cancel itself explains the stop; report nothing.
                     if (!_canceled) {
                         _project.processManager.onFailedProcess(this, new Exception(
@@ -262,12 +262,12 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
         private Serializable translateCell(
                 Cell cell, LibreTranslateClient client, Map<String, String> cache)
                 throws TranslationServiceUnreachableException {
-            // Null / blank cell → skip, leave blank (Decision C).
+            // Null / blank cell → skip, leave blank.
             if (cell == null || cell.value == null) {
                 return null;
             }
 
-            // Non-string cell → copy value unchanged (Decision C).
+            // Non-string cell → copy value unchanged.
             if (!(cell.value instanceof String)) {
                 return cell.value;
             }
@@ -277,7 +277,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
                 return null;
             }
 
-            // Cache lookup: only successful results are cached (Decision E).
+            // Cache lookup: only successful results are cached.
             String cacheKey = _sourceLang + "\u0000" + _targetLang + "\u0000" + text;
             if (cache.containsKey(cacheKey)) {
                 return cache.get(cacheKey);
@@ -290,7 +290,7 @@ public class ColumnTranslationOperation extends EngineDependentOperation {
             } catch (TranslationServiceUnreachableException e) {
                 throw e; // handled by run(): aborts the whole operation
             } catch (TranslationException e) {
-                // Apply on-error policy (Decision 7).
+                // Apply on-error policy.
                 return switch (_onError) {
                     case StoreError -> new EvalError(e.getMessage());
                     case KeepOriginal -> text;
